@@ -19,7 +19,6 @@ from behavior_tree_bot.bt_nodes import Selector, Sequence, Action, Check
 from planet_wars import PlanetWars, finish_turn
 
 enemy_fleets = []
-our_planets = []
 helpful_planets = {}
 # You have to improve this tree or create an entire new one that is capable
 # of winning against all the 5 opponent bots
@@ -35,15 +34,13 @@ def setup_behavior_tree():
 
     spread_sequence = Sequence(name='Spread Strategy')
     neutral_planet_check = Check(if_neutral_planet_available)
-    spread_action = Action(spread_to_weakest_neutral_planet)
+    spread_action = Action(spread)
     spread_sequence.child_nodes = [neutral_planet_check, spread_action]
 
-    defesive_plan = Sequence(name= 'Defesive Plan')
-    get_fleet_check = Check(get_enemy_attacking_fleets)
-    get_close_check = Check(get_close_planets)
-    get_savable_check = Check(get_savable_planets)
+    defensive_plan = Sequence(name= 'Defensive Plan')
+    enemy_attacking_check = Check(is_enemy_attacking)
     match_fleets = Action(defend_planets)
-    defensive_plan.child_nodes = [get_fleet_check, get_close_check, get_savable_check, match_fleets]
+    defensive_plan.child_nodes = [enemy_attacking_check, match_fleets]
 
     root.child_nodes = [defensive_plan, offensive_plan, spread_sequence, attack.copy()]
 
