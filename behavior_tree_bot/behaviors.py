@@ -90,18 +90,20 @@ def attack_weakest_enemy_planet(state):
 
 
 def spread(state):
-    my_planets = iter(sorted(state.my_planets(), key=lambda p: p.num_ships))
+    my_planets = state.my_planets()
+    neutral_planets = state.neutral_planets()
     neutral_planets = [planet for planet in state.neutral_planets()
                        if not any(fleet.destination_planet == planet.ID for fleet in state.my_fleets())]
-    neutral_planets.sort(key=lambda p: p.num_ships, reverse=True)
-    logging.debug("Test")
+    neutral_planets.sort(key=lambda p: p.num_ships)
+
     for planet in neutral_planets:
-        ships_needed = planet.num_ships
+        ships_needed = planet.num_ships + 1
         for my_planet in my_planets:
             if my_planet.num_ships/2 > ships_needed:
-                issue_order(state, my_planet.ID, planet.ID, planet.num_ships)
+                issue_order(state, my_planet.ID, planet.ID, planet.num_ships + 1)
                 ships_needed = 0
-            else
+                break
+            """else:
                 ships_needed -= my_planet.num_ships/2
-                issue_order(state, my_planet.ID, planet.ID, my_planet.num_ships/2)
-    return False
+                issue_order(state, my_planet.ID, planet.ID, my_planet.num_ships/2)"""
+    return True
