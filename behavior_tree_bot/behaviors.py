@@ -2,6 +2,23 @@ import sys
 sys.path.insert(0, '../')
 from planet_wars import issue_order
 
+def defend_planets(state):
+    for fleet in enemy_fleets:
+        key = fleet.destination_planet
+        ships_needed = fleet.num_ships + 1
+
+        for planet in helpful_planets[key]:
+            if (planet.num_ships - 1) > ships_needed:
+                #send ships_needed
+                issue_order(state, planet, key, ships_needed)
+                ships_needed = 0
+            else:
+                #send planet.num_ships - 1
+                ships_needed -= planet.num_ships - 1
+                issue_order(state, planet, key, planet.num_ships - 1)
+
+
+
 
 def attack_weakest_enemy_planet(state):
     # (1) If we currently have a fleet in flight, abort plan.
