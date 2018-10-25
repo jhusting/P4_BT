@@ -10,7 +10,7 @@ def is_enemy_attacking(state):
     return len(enemy_fleets) > 0
 
 def if_neutral_planet_available(state):
-    return any(state.neutral_planets())
+    return any(state.not_my_planets())
 
 
 def have_largest_fleet(state):
