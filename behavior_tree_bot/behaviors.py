@@ -20,7 +20,7 @@ def defend_planets2(state):
             enemy_fleets.remove(fleet)
 
     if len(enemy_fleets) == 0:
-        return False
+        return True
 
     for fleet in enemy_fleets:
         target = fleet.destination_planet
@@ -41,7 +41,7 @@ def defend_planets2(state):
                     issue_order(state, planet.ID, target, planet.num_ships - 1)
                     ships_needed -= planet.num_ships - 1
 
-    return False
+    return True
 
 def equalize(state):
     my_planets = state.my_planets()
@@ -49,6 +49,9 @@ def equalize(state):
     def strength(p):
         return p.num_ships + sum(fleet.num_ships for fleet in state.my_fleets() if fleet.destination_planet == p.ID) \
                - sum(fleet.num_ships for fleet in state.enemy_fleets() if fleet.destination_planet == p.ID)
+
+    if not my_planets:
+        return True
 
     average_strength = sum(strength(p) for p in my_planets) / len(my_planets)
 
@@ -77,7 +80,7 @@ def equalize(state):
             
             if ships_avail <= 0:
                 break
-    return False
+    return True
 
 
 def attack_weakest_enemy_planet(state):
@@ -125,7 +128,7 @@ def spread(state):
     orders_issued = 0
     for my_planet in my_planets:
         ships_avail = my_planet.num_ships - 10
-        neutral_planets.sort(key=lambda p: p.num_ships + 2*state.distance(my_planet.ID, p.ID))
+        neutral_planets.sort(key=lambda p: p.num_ships + state.distance(my_planet.ID, p.ID)/2)
         for target in neutral_planets:
             ships_needed = target.num_ships + 1
 
