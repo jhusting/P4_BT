@@ -39,7 +39,7 @@ def setup_behavior_tree():
 
     defensive_plan = Sequence(name= 'Defensive Plan')
     enemy_attacking_check = Check(is_enemy_attacking)
-    match_fleets = Action(defend_planets)
+    match_fleets = Action(defend_planets2)
     defensive_plan.child_nodes = [enemy_attacking_check, match_fleets]
 
     root.child_nodes = [defensive_plan, spread_sequence]

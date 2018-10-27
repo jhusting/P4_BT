@@ -2,77 +2,83 @@ import sys
 sys.path.insert(0, '../')
 from planet_wars import issue_order
 from bt_bot import *
+from math import floor
 
-def defend_planets(state):
+def defend_planets2(state):
     enemy_fleets = state.enemy_fleets()
 
     for fleet in enemy_fleets:
         if state.planets[fleet.destination_planet].owner != 1:
             enemy_fleets.remove(fleet)
 
-    #check if I've already sent fleets to defend
-    my_fleets = state.my_fleets()
     for fleet in enemy_fleets:
-        total_sent = 0
-        for my_fleet in my_fleets:
-            if my_fleet.destination_planet == fleet.destination_planet:
-                total_sent += my_fleet.num_ships
-                my_fleets.remove(my_fleet)
+        total_sent = sum(my_fleet.num_ships for my_fleet in state.my_fleets() if my_fleet.destination_planet == fleet.destination_planet)
+        planet = state.planets[fleet.destination_planet]
+        total_sent += planet.num_ships + planet.growth_rate * fleet.turns_remaining
+
         if total_sent >= fleet.num_ships:
             enemy_fleets.remove(fleet)
 
     if len(enemy_fleets) == 0:
         return False
 
-    #get close planets
-    helpful_planets = {}
     for fleet in enemy_fleets:
-        for planet in state.my_planets():
-            if state.distance(planet.ID, fleet.destination_planet) < fleet.turns_remaining:
-                if fleet.destination_planet not in helpful_planets:
-                    helpful_planets[fleet.destination_planet] = []
-                helpful_planets[fleet.destination_planet].append(planet)
-        if fleet.destination_planet not in helpful_planets:
-            enemy_fleets.remove(fleet)
-
-    if len(helpful_planets) == 0:
-        return False
-
-    #get savable planets
-    for fleet in enemy_fleets:
-        key = fleet.destination_planet
-        total_available_ships = 0
-
-        if key in helpful_planets:
-            for planet in helpful_planets[key]:
-                total_available_ships += planet.num_ships
-
-            if total_available_ships < fleet.num_ships:
-                helpful_planets.pop(key)
-
-    if len(helpful_planets) == 0:
-        return False
-
-    orders_issued = 0
-    #save planets
-    for fleet in enemy_fleets:
-        key = fleet.destination_planet
+        target = fleet.destination_planet
         ships_needed = fleet.num_ships + 1
 
-        if key in helpful_planets:
-            for planet in helpful_planets[key]:
-                if (planet.num_ships - 1) > ships_needed:
-                    #send ships_needed
-                    issue_order(state, planet.ID, key, ships_needed)
-                    orders_issued += 1
+        helpful_planets = [planet for planet in state.my_planets() if state.distance(planet.ID, target) <= fleet.turns_remaining]
+        ships_avail = sum(planet.num_ships for planet in helpful_planets) - len(helpful_planets)
+
+        if ships_avail > ships_needed:
+            for planet in helpful_planets:
+                if ships_needed < 1:
+                    break
+                if planet.num_ships - 1 >= ships_needed > 0:
+                    issue_order(state, planet.ID, target, ships_needed)
                     ships_needed = 0
                     break
-                else:
-                    #send planet.num_ships - 1
+                elif planet.num_ships - 1 > 0:
+                    issue_order(state, planet.ID, target, planet.num_ships - 1)
                     ships_needed -= planet.num_ships - 1
-                    issue_order(state, planet.ID, key, planet.num_ships - 1)
-                    orders_issued += 1
+
     return False
+
+def equalize(state):
+    my_planets = state.my_planets()
+
+    def strength(p):
+        return p.num_ships + sum(fleet.num_ships for fleet in state.my_fleets() if fleet.destination_planet == p.ID) \
+               - sum(fleet.num_ships for fleet in state.enemy_fleets() if fleet.destination_planet == p.ID)
+
+    average_strength = sum(strength(p) for p in my_planets) / len(my_planets)
+
+    below_average = [planet for planet in my_planets if strength(planet) < average_strength]
+    above_average = [planet for planet in my_planets if strength(planet) > average_strength]
+
+    below_average.sort(key=strength)
+    above_average.sort(key=strength, reverse = True)
+
+    average_strength = floor(average_strength)
+
+    for strong in above_average:
+        ships_avail = strong.num_ships - average_strength
+
+        for weak in below_average:
+            ships_needed = average_strength - weak.num_ships
+
+            if ships_avail >= ships_needed > 0:
+                issue_order(state, strong.ID, weak.ID, ships_needed)
+                ships_avail -= ships_needed
+                below_average.remove(weak)
+            elif ships_avail > 0:
+                issue_order(state, strong.ID, weak.ID, ships_avail)
+                ships_avail = 0
+                break
+            
+            if ships_avail <= 0:
+                break
+    return False
+
 
 def attack_weakest_enemy_planet(state):
     # (1) If we currently have a fleet in flight, abort plan.
@@ -95,55 +101,43 @@ def attack_weakest_enemy_planet(state):
 
 def spread(state):
     my_planets = state.my_planets()
+
+    for fleet in state.enemy_fleets():
+        planet = state.planets[fleet.destination_planet]
+        if planet.owner == 1 and planet in my_planets:
+            my_planets.remove(planet)
+
     my_planets.sort(key=lambda p: p.num_ships, reverse=True)
     neutral_planets = state.not_my_planets()
 
     #This loop checks if I've sent enough fleets to deal with each planet
     for planet in neutral_planets:
-        total_needed = planet.num_ships
-        turns_left = 0
-        total_sent = 0
+        total_needed = planet.num_ships + sum(fleet.num_ships for fleet in state.enemy_fleets() if fleet.destination_planet == planet.ID)
+        total_sent = sum(fleet.num_ships for fleet in state.my_fleets() if fleet.destination_planet == planet.ID)
 
-        for fleet in state.my_fleets():
-            if fleet.destination_planet == planet.ID:
-                total_sent += fleet.num_ships
-                if fleet.turns_remaining > turns_left:
-                    turns_left = fleet.turns_remaining
-
-        for fleet in state.enemy_fleets():
-            if fleet.destination_planet == planet.ID:
-                total_needed += fleet.num_ships
-
-        if planet.owner != 0:
-            total_needed += planet.growth_rate * turns_left
+        #if planet.owner != 0:
+            #total_needed += planet.growth_rate * turns_left
         if total_sent >= total_needed:
             neutral_planets.remove(planet)
-
 
     neutral_planets.sort(key=lambda p: p.num_ships)
 
     orders_issued = 0
-    for planet in neutral_planets:
-        ships_needed = planet.num_ships + 1
-        for my_planet in my_planets:
-            if planet.owner != 0:
-                ships_needed += state.distance(my_planet.ID, planet.ID) * planet.growth_rate
-            if my_planet.num_ships/2 > ships_needed:
-                issue_order(state, my_planet.ID, planet.ID, ships_needed)
-                if my_planet.num_ships - ships_needed < 20:
-                    my_planets.remove(my_planet)
+    for my_planet in my_planets:
+        ships_avail = my_planet.num_ships - 10
+        neutral_planets.sort(key=lambda p: p.num_ships + 2*state.distance(my_planet.ID, p.ID))
+        for target in neutral_planets:
+            ships_needed = target.num_ships + 1
 
+            if target.owner != 0:
+                ships_needed += state.distance(my_planet.ID, target.ID) * target.growth_rate
+
+            if ships_avail >= ships_needed > 0:
+                issue_order(state, my_planet.ID, target.ID, ships_needed)
                 orders_issued += 1
-                ships_needed = 0
+                ships_avail -= ships_needed
+                neutral_planets.remove(target)
+            else:
                 break
-            elif my_planet.num_ships/2 > 30:
-                ships_needed -= my_planet.num_ships/2
-                issue_order(state, my_planet.ID, planet.ID, my_planet.num_ships/2)
-                orders_issued += 1
-                #my_planet.num_ships -= my_planet.num_ships/2
-                if my_planet.num_ships/2 < 20:
-                    my_planets.remove(my_planet)
-                if planet.owner != 0:
-                    ships_needed -= state.distance(my_planet.ID, planet.ID) * planet.growth_rate
 
     return orders_issued > 0
